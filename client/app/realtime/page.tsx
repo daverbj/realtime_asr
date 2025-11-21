@@ -23,6 +23,7 @@ export default function RealtimeTranscription() {
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('auto');
+  const [selectedModel, setSelectedModel] = useState<string>('whisper'); // 'whisper' or 'omniasr'
 
   const wsRef = useRef<WebSocket | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -61,7 +62,12 @@ export default function RealtimeTranscription() {
   }, []);
 
   const connectWebSocket = () => {
-    const ws = new WebSocket('ws://149.36.1.63:33842/ws/transcribe');
+    // Choose WebSocket endpoint based on selected model
+    const endpoint = selectedModel === 'omniasr' 
+      ? 'ws://149.36.1.63:33842/ws/omniasr'
+      : 'ws://149.36.1.63:33842/ws/transcribe';
+    
+    const ws = new WebSocket(endpoint);
 
     ws.onopen = () => {
       console.log('WebSocket connected');
@@ -228,7 +234,30 @@ export default function RealtimeTranscription() {
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white p-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold mb-2">Real-Time Transcription</h1>
-        <p className="text-gray-400 mb-8">Powered by Whisper Large V3 & Silero VAD</p>
+        <p className="text-gray-400 mb-8">Powered by Whisper Large V3 & OmniASR</p>
+
+        {/* Model Selection */}
+        <div className="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700">
+          <h2 className="text-lg font-semibold mb-4">🤖 Model Selection</h2>
+          
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-2">ASR Model</label>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              disabled={isRecording || isConnected}
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <option value="whisper">Whisper Large V3 (90+ languages, VAD-based)</option>
+              <option value="omniasr">OmniASR CTC 7B (1600+ languages, 16x real-time)</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">
+              {selectedModel === 'whisper' 
+                ? '🎯 Best for: High accuracy with voice activity detection'
+                : '⚡ Best for: Ultra-fast transcription with massive language coverage'}
+            </p>
+          </div>
+        </div>
 
         {/* Microphone Selection */}
         <div className="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700">

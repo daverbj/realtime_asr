@@ -27,8 +27,9 @@ import tempfile
 import os
 from pathlib import Path
 from realtime_transcription import RealtimeTranscriber, websocket_transcription_handler
+from omnilingual_transcription import OmniASRTranscriber, websocket_omniasr_handler
 
-app = FastAPI(title="Whisper Transcription API")
+app = FastAPI(title="Whisper & OmniASR Transcription API")
 
 # Enable CORS for Next.js frontend
 app.add_middleware(
@@ -39,11 +40,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global variables to store the model and pipeline
+# Global variables to store the models
+# Whisper model
 model = None
 processor = None
 pipe = None
 realtime_transcriber = None
+
+# OmniASR model
+omniasr_transcriber = None
+current_model_type = "whisper"  # "whisper" or "omniasr"
 
 
 def load_model():
@@ -62,7 +68,7 @@ def load_model():
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
     
-    model_id = "openai/whisper-large-v3"
+    model_id = "openai/whisper-large-v2"
     cache_dir = "./models"
     
     model = AutoModelForSpeechSeq2Seq.from_pretrained(
@@ -113,21 +119,67 @@ def load_model():
 
 @app.on_event("startup")
 async def startup_event():
-    """Load model on startup."""
+    """Load Whisper model on startup."""
     load_model()
+
+
+def load_omniasr_model():
+    """Load OmniASR model (CTC 1B for balance of speed and size)."""
+    global omniasr_transcriber
+    
+    if omniasr_transcriber is not None:
+        return
+    
+    print("Loading OmniASR CTC 1B model...")
+    omniasr_transcriber = OmniASRTranscriber(
+        model_card="omniASR_CTC_1B",
+        device="cuda" if torch.cuda.is_available() else "cpu"
+    )
+    print("OmniASR model loaded successfully")
 
 
 @app.get("/")
 async def root():
     """Root endpoint with API information."""
     return {
-        "message": "Whisper Large V3 Transcription API",
-        "model": "openai/whisper-large-v3",
+        "message": "Whisper & OmniASR Transcription API",
+        "current_model": current_model_type,
+        "available_models": {
+            "whisper": "OpenAI Whisper Large V3 - 90+ languages",
+            "omniasr": "Facebook OmniASR CTC 7B - 1600+ languages, 16x real-time speed"
+        },
         "endpoints": {
             "/transcribe": "POST - Upload audio file for transcription",
-            "/ws/transcribe": "WebSocket - Real-time streaming transcription",
+            "/ws/transcribe": "WebSocket - Real-time streaming transcription (Whisper)",
+            "/ws/omniasr": "WebSocket - Real-time streaming transcription (OmniASR)",
+            "/model": "POST - Switch model type",
             "/health": "GET - Check API health status"
         }
+    }
+
+
+@app.post("/model")
+async def switch_model(model_type: str):
+    """
+    Switch between Whisper and OmniASR models.
+    
+    Args:
+        model_type: "whisper" or "omniasr"
+    """
+    global current_model_type
+    
+    if model_type not in ["whisper", "omniasr"]:
+        raise HTTPException(status_code=400, detail="Invalid model type. Use 'whisper' or 'omniasr'")
+    
+    if model_type == "omniasr" and omniasr_transcriber is None:
+        load_omniasr_model()
+    
+    current_model_type = model_type
+    
+    return {
+        "status": "success",
+        "current_model": current_model_type,
+        "message": f"Switched to {model_type} model"
     }
 
 
@@ -136,7 +188,9 @@ async def health():
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "model_loaded": pipe is not None,
+        "current_model": current_model_type,
+        "whisper_loaded": pipe is not None,
+        "omniasr_loaded": omniasr_transcriber is not None,
         "device": "cuda" if torch.cuda.is_available() else "cpu"
     }
 
@@ -209,7 +263,7 @@ async def transcribe_audio(
 @app.websocket("/ws/transcribe")
 async def websocket_transcribe(websocket: WebSocket):
     """
-    WebSocket endpoint for real-time audio transcription.
+    WebSocket endpoint for real-time audio transcription using Whisper.
     
     Client should send:
     - Binary audio data (16-bit PCM, 16kHz, mono)
@@ -222,10 +276,33 @@ async def websocket_transcribe(websocket: WebSocket):
     - {"type": "error", "message": "..."}
     """
     if realtime_transcriber is None:
-        await websocket.close(code=1011, reason="Model not loaded")
+        await websocket.close(code=1011, reason="Whisper model not loaded")
         return
     
     await websocket_transcription_handler(websocket, realtime_transcriber)
+
+
+@app.websocket("/ws/omniasr")
+async def websocket_omniasr(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time audio transcription using OmniASR.
+    
+    Client should send:
+    - Binary audio data (16-bit PCM, 16kHz, mono)
+    - Text commands: {"type": "set_language", "language": "hi"}, {"type": "stop"}
+    
+    Server sends:
+    - {"type": "status", "message": "..."}
+    - {"type": "transcription", "text": "...", "language": "...", "is_final": bool}
+    - {"type": "error", "message": "..."}
+    """
+    global omniasr_transcriber
+    
+    # Load OmniASR model if not loaded
+    if omniasr_transcriber is None:
+        load_omniasr_model()
+    
+    await websocket_omniasr_handler(websocket, omniasr_transcriber)
 
 
 if __name__ == "__main__":
