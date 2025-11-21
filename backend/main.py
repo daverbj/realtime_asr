@@ -124,15 +124,15 @@ async def startup_event():
 
 
 def load_omniasr_model():
-    """Load OmniASR model (CTC 1B for balance of speed and size)."""
+    """Load OmniASR model (CTC 7B for speed)."""
     global omniasr_transcriber
     
     if omniasr_transcriber is not None:
         return
     
-    print("Loading OmniASR CTC 1B model...")
+    print("Loading OmniASR CTC 7B model...")
     omniasr_transcriber = OmniASRTranscriber(
-        model_card="omniASR_CTC_1B",
+        model_card="omniASR_CTC_7B",
         device="cuda" if torch.cuda.is_available() else "cpu"
     )
     print("OmniASR model loaded successfully")

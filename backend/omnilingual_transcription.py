@@ -128,7 +128,6 @@ class OmniASRTranscriber:
             "en": "eng_Latn",
             "hi": "hin_Deva",  # Hindi in Devanagari script
             "bn": "ben_Beng",  # Bengali in Bengali script
-            "ur": "urd_Arab",  # Urdu in Arabic script
             "pa": "pan_Guru",  # Punjabi in Gurmukhi script
             "ta": "tam_Taml",  # Tamil
             "te": "tel_Telu",  # Telugu

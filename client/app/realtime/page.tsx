@@ -64,8 +64,8 @@ export default function RealtimeTranscription() {
   const connectWebSocket = () => {
     // Choose WebSocket endpoint based on selected model
     const endpoint = selectedModel === 'omniasr' 
-      ? 'ws://149.36.1.63:33842/ws/omniasr'
-      : 'ws://149.36.1.63:33842/ws/transcribe';
+      ? 'ws://149.36.1.63:28888/ws/omniasr'
+      : 'ws://149.36.1.63:28888/ws/transcribe';
     
     const ws = new WebSocket(endpoint);
 
