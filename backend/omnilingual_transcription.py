@@ -75,12 +75,12 @@ class OmniASRBuffer:
 class OmniASRTranscriber:
     """Real-time transcription using OmniASR models."""
     
-    def __init__(self, model_card="omniASR_CTC_7B", device="cuda", cache_dir="./models"):
+    def __init__(self, model_card="omniASR_LLM_7B", device="cuda", cache_dir="./models"):
         """
         Initialize OmniASR transcriber.
         
         Args:
-            model_card: Model to use (omniASR_CTC_7B recommended for speed)
+            model_card: Model to use (omniASR_LLM_7B for multi-language support)
             device: Device to run on (cuda/cpu)
             cache_dir: Directory to cache downloaded models
         """
@@ -109,53 +109,36 @@ class OmniASRTranscriber:
             onnx=False
         )
         self.get_speech_timestamps = utils[0]
-        self.vad_threshold = 0.5
+        self.vad_threshold = 0.3
         
         logger.info(f"OmniASR model loaded successfully")
         logger.info(f"Model: {model_card}")
         logger.info(f"Device: {device}")
-        logger.info("Silero VAD loaded for speech detection")
+        logger.info("Silero VAD enabled for speech detection")
         
-    def get_language_code(self, language: str) -> str:
+    def get_language_code(self, language: str) -> Optional[str]:
         """
-        Convert language preference to OmniASR language code.
+        Get OmniASR language code for single language constraint.
         
-        OmniASR uses format: {language_code}_{script}
-        Examples: eng_Latn, hin_Deva, ben_Beng, urd_Arab
+        Returns single language code or None for auto-detection.
         """
-        # Mapping from common language codes to OmniASR format
+        # Supported languages only
         lang_map = {
             "en": "eng_Latn",
-            "hi": "hin_Deva",  # Hindi in Devanagari script
-            "bn": "ben_Beng",  # Bengali in Bengali script
-            "pa": "pan_Guru",  # Punjabi in Gurmukhi script
-            "ta": "tam_Taml",  # Tamil
-            "te": "tel_Telu",  # Telugu
-            "mr": "mar_Deva",  # Marathi in Devanagari script
-            "gu": "guj_Gujr",  # Gujarati
-            "kn": "kan_Knda",  # Kannada
-            "ml": "mal_Mlym",  # Malayalam
-            "or": "ory_Orya",  # Odia
-            "as": "asm_Beng",  # Assamese in Bengali script
-            "auto": None,      # Auto-detect (not supported, will use eng_Latn)
+            "hi": "hin_Deva",
+            "bn": "ben_Beng",
+            "auto": None,  # No constraint - auto-detect from all languages
         }
         
-        code = lang_map.get(language, "eng_Latn")
-        
-        # Verify language is supported
-        if code and code not in supported_langs:
-            logger.warning(f"Language code {code} not in supported languages, using eng_Latn")
-            code = "eng_Latn"
-        
-        return code
+        return lang_map.get(language, None)
     
     def transcribe_segment(self, audio_segment: np.ndarray, language: str = "auto") -> Dict[str, Any]:
         """
-        Transcribe an audio segment.
+        Transcribe an audio segment with VAD filtering.
         
         Args:
             audio_segment: Audio data as float32 array
-            language: Language code (e.g., "hi", "bn", "en")
+            language: Language code (e.g., "hi", "bn", "en", "auto")
         
         Returns:
             Dictionary with 'text' and 'language'
@@ -171,23 +154,18 @@ class OmniASRTranscriber:
                 sampling_rate=self.sample_rate,
                 threshold=self.vad_threshold,
                 min_speech_duration_ms=250,
-                min_silence_duration_ms=100
+                min_silence_duration_ms=500
             )
             
             # If no speech detected, return empty
             if not speech_timestamps:
-                logger.info("No speech detected in segment")
                 return {
                     "text": "",
                     "language": "no_speech"
                 }
             
-            # Convert language code
+            # Get language code (None for auto-detect)
             lang_code = self.get_language_code(language)
-            if lang_code is None:
-                lang_code = "eng_Latn"  # Default to English
-            
-            logger.info(f"Speech detected, transcribing with language: {lang_code}")
             
             # Prepare audio data in OmniASR format
             audio_data = {
@@ -195,19 +173,26 @@ class OmniASRTranscriber:
                 "sample_rate": self.sample_rate
             }
             
-            # Transcribe
-            # OmniASR expects list of audio files or audio dictionaries
-            transcriptions = self.pipeline.transcribe(
-                [audio_data],
-                lang=[lang_code],
-                batch_size=1
-            )
+            # Transcribe - lang must match number of inputs (1 audio = 1 lang)
+            if lang_code is None:
+                logger.info("Speech detected, transcribing with auto-detection (all languages)")
+                transcriptions = self.pipeline.transcribe(
+                    [audio_data],
+                    batch_size=1
+                )
+            else:
+                logger.info(f"Speech detected, transcribing with language: {lang_code}")
+                transcriptions = self.pipeline.transcribe(
+                    [audio_data],
+                    lang=[lang_code],  # Single language for single input
+                    batch_size=1
+                )
             
             text = transcriptions[0] if transcriptions else ""
             
             return {
                 "text": text.strip(),
-                "language": lang_code
+                "language": lang_code if lang_code else "auto_detected"
             }
             
         except Exception as e:

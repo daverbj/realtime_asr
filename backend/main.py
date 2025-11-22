@@ -124,15 +124,15 @@ async def startup_event():
 
 
 def load_omniasr_model():
-    """Load OmniASR model (CTC 7B for speed)."""
+    """Load OmniASR model (LLM 7B for multi-language support)."""
     global omniasr_transcriber
     
     if omniasr_transcriber is not None:
         return
     
-    print("Loading OmniASR CTC 7B model...")
+    print("Loading OmniASR LLM 7B model...")
     omniasr_transcriber = OmniASRTranscriber(
-        model_card="omniASR_CTC_7B",
+        model_card="omniASR_LLM_7B",
         device="cuda" if torch.cuda.is_available() else "cpu"
     )
     print("OmniASR model loaded successfully")
@@ -146,7 +146,7 @@ async def root():
         "current_model": current_model_type,
         "available_models": {
             "whisper": "OpenAI Whisper Large V3 - 90+ languages",
-            "omniasr": "Facebook OmniASR CTC 7B - 1600+ languages, 16x real-time speed"
+            "omniasr": "Facebook OmniASR LLM 7B - 1600+ languages with multi-language detection"
         },
         "endpoints": {
             "/transcribe": "POST - Upload audio file for transcription",

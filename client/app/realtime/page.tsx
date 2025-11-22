@@ -284,34 +284,25 @@ export default function RealtimeTranscription() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Language (Optional)</label>
+            <label className="block text-sm font-medium mb-2">Language</label>
             <select
               value={selectedLanguage}
               onChange={(e) => setSelectedLanguage(e.target.value)}
-              disabled={isRecording}
-              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="auto">Auto-detect</option>
+              <option value="auto">Auto-detect (English, Hindi, Bengali)</option>
               <option value="en">English</option>
-              <option value="hi">Hindi (हिंदी) - Devanagari Script</option>
+              <option value="hi">Hindi (हिंदी)</option>
               <option value="bn">Bengali (বাংলা)</option>
-              <option value="ur">Urdu (اردو) - Arabic Script</option>
-              <option value="ta">Tamil (தமிழ்)</option>
-              <option value="te">Telugu (తెలుగు)</option>
-              <option value="mr">Marathi (मराठी)</option>
-              <option value="gu">Gujarati (ગુજરાતી)</option>
-              <option value="kn">Kannada (ಕನ್ನಡ)</option>
-              <option value="ml">Malayalam (മലയാളം)</option>
-              <option value="pa">Punjabi (ਪੰਜਾਬੀ)</option>
             </select>
             <p className="text-xs text-gray-400 mt-1">
-              💡 Select Hindi for Devanagari script (हिंदी), or Urdu for Arabic script (اردو)
+              💡 OmniASR will detect from the selected language(s)
             </p>
           </div>
           
           {isRecording && (
             <p className="text-sm text-gray-400 mt-2">
-              Stop recording to change settings
+              You can change language while recording
             </p>
           )}
         </div>
